@@ -1,0 +1,628 @@
+---
+title: "A Statistical Prediction of the Outcome of Future Canadian Federal Elections"
+author: "GROUP 137: Ali Kaazempur-Mofrad, Zeynep Karadeniz, Dhanraj Patel"
+date: November 5, 2021
+subtitle: STA304 - Assignment 3
+output:
+  pdf_document: default
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(openintro)
+library(tidyverse)
+library(broom)
+library(kableExtra)
+library(scales)
+```
+
+
+
+## Introduction
+
+With a population of over 30 million people, Canada is one of the largest countries in the world with a wide array of diverse and constantly evolving political beliefs among the population. As a multiple system parliamentary democracy Canadians have many different choices of political parties to choose from during elections with the three largest parties being the Liberal Party, the Conservative Party and the New Democratic Party (NDP). As the attitudes that Canadians have about these different political parties is constantly changing, the goal of this study is to use publicly sampled data and apply stratification with census data to predict the winner of the next Canadian federal election. It is important to note that the sampled data contains samples from a wide array of diverse Canadians from a survey taken in 2019. 
+
+It is important to analyze sampled data and to use that information to predict the outcome of the next federal election in order to better understand the the population's political beliefs and the political party they support. The data allows us to also analyze the political opinions of Canadians in different regions to understand how politically diverse or how concentrated political opinions are between different provinces. In addition to regional and national relevance, this study also has global relevance as the data allows us to compare our political beliefs with other countries around the world. The main goal of this study is to better understand the political beliefs of Canadians and how they feel about different Canadian political parties. 
+
+**Terminology**
+
+Before getting to the data and methods section, it is first important to understand some of the terminology within the survey. 
+
+In terms of Canadian politics, it is important to know that Canada uses a multi-party parliamentary democracy. At the federal level, while Canada has many parties, the three main parties are the Liberal Party, the Conservative Party and the New Democratic Party (NDP). These three parties will be the focus of this study. 
+
+Also, for this study it is important to understand that both the survey sampling data and census data that will be used. The sampling data in this study was collected by the Canadian Election Study (CES) group. They specialize in collecting both the the demographics and political opinions of Canadians. In this study, we will be using the survey conducted in 2019 for the sample data in this study. For the census data, we will be using the General Social Survey (GSS) which is an in depth survey conducted by Statistics Canada. By using the sample data we will be able investigate the political opinions of Canadians and by extrapolating the data using post stratification using the census data, we will be able to predict the winner of the next federal election.   
+
+**Central Question**
+
+By using the data from the CES survey and conducting post stratification with the census data, this study aims to answer the question of who will be the winner of the next Canadian federal election. Since the CES data took place in 2019, we hypothesize that the results of the study will mirror the outcome of the federal election that took place in 2019. In this election the Liberal Party won the most amount of seats, securing the position of Prime Minister, but the Conservative Party won the popular vote. Lastly, we hypothesis that the NDP party will place third place in the results.  
+
+
+## Data
+
+**Introducing the Data**
+
+In order to predict the outcome of the next federal election we will be utilizing data collected by the Canadian Election Study (CES). The Canadian Election Study is a group that aims to collect information on what Canadians think of different Canadian political parties and the demographics of those who respond to their survey. They primarily collect data using telephone surveys in addition to online surveys [1]. Using their 2019 data, we will be able to understand how a diverse set of Canadians view the three largest political parties in Canada (the Liberal Party, the Conservative Party and the the New Democratic Party) and if they would vote for them. An issue arises in the fact that while the survey data is extensive, it is not large enough to extrapolate to all of Canada. In order to amend this issue, we will be using post stratification to extrapolate our data by utilizing the General Social Survey (GSS) conducted by Statistics Canada. The GSS is a large scale survey conducted through phone surveys and internet surveys that collects information on the demographics of many Canadians [2]. By using the CES data in conjunction with the GSS, we will be able to predict the outcome of the next federal election.  
+
+
+**Cleaning of the Data**
+
+After retrieving the data, it is important to clean the data so that the results generated by the models and summaries are an accurate reflection of the data. In order to clean the data, all columns from the dataset that were not used in the data summaries and models were removed from the CES dataset. After removing the columns, the only columns that remained were information regarding the survey participants, including their age group, gender, family income, highest level of attained education,  and whether they would vote for the Liberal, Conservative, NDP parties. In addition, within the CES and GSS surveys, survey participants had the option to skip/refuse to answer any given question. To prevent missing data from impacting the results, any row that contained missing data was removed. Moreover, in the CES survey we modified the age group intervals of the survey participants to match the age intervals collected in the GSS survey, which is necessary for us to implement a post-stratification model in our methodology.
+
+
+
+
+
+```{r, include = FALSE}
+
+# Here you can load in and clean the census data (you may need to do the cleaning in a separate R script). 
+
+census_data <- read_csv("gss_clean.csv")
+
+# You may need additional chunks, in case you want to include some of the cleaning output.
+
+```
+
+
+
+
+
+```{r, include = FALSE}
+
+# Here you can load in and clean the survey data (you may need to do the cleaning in a separate R script). 
+# First, if you don't already have it, install the devtools package:
+#install.packages("devtools")
+
+# Now use devtools to install the cesR package directly from Github:
+#devtools::install_github("hodgettsp/cesR")
+
+
+# Load it like any other package:
+
+library(cesR)
+
+# There are many different CES datasets, and they have unique codes. 
+# See them with the get_cescodes() function:
+
+get_cescodes()
+
+# Now pick one, let's try ces2019_phone
+
+get_ces("ces2019_phone")
+
+survey_data <- ces2019_phone
+
+# Alternative to what is in the comments above, I have locally loaded
+# and (mildly) cleaned the CES2019 phone data and have included it in here.
+# We can load it in:
+# survey_data <- read_csv("ces2019-phone_clean.csv")
+attach(survey_data)
+
+```
+
+
+
+```{r, include = FALSE}
+### Cleaned up the census_data and put it into a new dataset called census. Put ages into age groups and made the cell divisions
+
+census_data <- census_data %>% 
+  mutate(age_group = case_when(age >= 60 ~ '60+',age >= 45  & age <= 59 ~ '45-59',
+                              age >= 30  & age <= 44 ~ '30-44',
+                              age >= 18  & age <= 29 ~ '18-29'))
+
+
+### Redefining education levels to match survey data
+census_data <- census_data %>% 
+  mutate(education = case_when(education == "Bachelor's degree (e.g. B.A., B.Sc., LL.B.)" ~ "Bachelor's degree", education == "College, CEGEP or other non-university certificate or di..."  ~ "College or non-university diploma/certificate", education == "High school diploma or a high school equivalency certificate" ~ "High school diploma or equivalent", education == "Less than high school diploma or its equivalent" ~ "Less than high school", education == "Trade certificate or diploma" ~ "College or non-university diploma/certificate", education == "University certificate or diploma below the bachelor's level" ~ "University certificate below bachelor", education == "University certificate, diploma or degree above the bach..." ~ "University certificate above bachelor"))
+  
+
+
+census_data <- census_data[complete.cases(census_data[ , c('age_group', 'education', 'income_family')]), ] 
+
+census<-census_data %>% 
+  group_by(province, sex, age_group, education, income_family) %>%
+  mutate(total=n()) %>% 
+  summarise(n = n())
+
+census <- census %>% 
+  group_by(province) %>% 
+  summarise(gender=sex,age_group,income_family,education,n,sum(n), cell_division=n/sum(n))
+
+```
+
+```{r, include = FALSE}
+
+### Cleaned up the survey_data. Renamed the variables to make them more understandable. Made vote_liberal to have a binary outcome. Removed all na values and filtered out pretax income values that were below 0 (those who didn't respond to that question in the survey)
+
+
+#### You will need to update/clean the code below based off the variables you want to use in your poststratification.
+
+survey_data <- 
+  survey_data %>% 
+  filter(q69 >= 0) %>% 
+  mutate(age = 2019-q2,
+         vote_liberal = ifelse(q11==1, 1, 0),
+          vote_conservative = ifelse(q11==2, 1, 0),
+          vote_NDP = ifelse(q11==3, 1, 0)) %>% 
+  select(age, vote_liberal,vote_conservative,vote_NDP,news_time=q44,live_in=p57,education=q61,pretax_income=q69, gender = q3)
+
+
+survey_data <- survey_data %>% 
+  mutate(gender = case_when(gender == 1 ~ "Male", gender == 2 ~ "Female"))
+
+
+ survey_data <- survey_data %>% 
+  mutate(age_group = case_when(age >= 60 ~ '60+',age >= 45  & age <= 59 ~ '45-59',
+                              age >= 30  & age <= 44 ~ '30-44',
+                              age >= 18  & age <= 29 ~ '18-29'))
+ 
+survey_data <- survey_data %>% 
+    filter(education >= 0) %>% ## Filter out non-responses
+    mutate(education = case_when(education == 2 | education == 3  | education == 4 ~ 'Less than high school',  education == 5 ~ 'High school diploma or equivalent', education == 6 | education == 7 ~ "College or non-university diploma/certificate", education == 8 ~ "University certificate below bachelor" , education == 9 ~ "Bachelor's degree", education == 10 | education == 11 ~ "University certificate above bachelor"))
+  
+
+survey_data <- survey_data %>% 
+  mutate(income_family = case_when(pretax_income < 25000 ~ "Less than $25,000", pretax_income >= 25000 & pretax_income <= 49999 ~ "$25,000 to $49,999", pretax_income >= 50000 & pretax_income <= 74999 ~ "$50,000 to $74,999", pretax_income >= 75000 & pretax_income <= 99999 ~ "$75,000 to $99,999", pretax_income >= 100000 & pretax_income <= 124999 ~ "$100,000 to $ 124,999", pretax_income >= 125000 ~ "$125,000 and more" ))
+
+survey_data <- survey_data[complete.cases(survey_data[ , c('age_group','gender','education','income_family', 'vote_liberal','vote_conservative','vote_NDP')]), ]
+
+
+survey_data <- 
+  survey_data %>% 
+  select(vote_liberal, vote_conservative, vote_NDP, education,income_family, gender, age_group, age, pretax_income)
+```
+
+
+
+
+**Important Variables**
+
+### The following are the important variables from the 2019 CES survey
+ 
+ * age - The exact age of the CES survey participant
+ * pretax_income - The exact reported income (pre-tax) of the CES survey participant
+ * age_group - The age grouping interval of the CES survey participant
+ * gender - The gender of the CES survey participant
+ * Income_family - The family income of the CES survey participant
+ * education - The highest completed level of education of the CES survey participant
+ * vote_liberal - Whether the CES survey participant indicated they would vote for the Liberal Party in the next election
+ * vote_conservative - If the CES survey participant indicated they would vote for the Conservative Party in the next election
+ * vote_NDP - Whether the CES survey participant indicated they would vote for the NDP Party in the next election
+ * vote - The party that the CES survey participant reported that they will vote for in the next election 
+ 
+### The following are the important variables from the GSS survey
+
+ * age_group - The age grouping interval of the GSS survey participants
+ * gender - The gender of the GSS survey participants
+ * Income_family - The family income of the GSS survey participants
+ * education - The highest completed level of education of the GSS survey participants
+ * province - The province in which the GSS survey participants resides
+
+ 
+
+## Numerical Summaries 
+
+Before moving onto methods, it is important to understand the data using numerical summaries. It is particularly important to investigate the spread and location of the data to better understand the values.
+
+
+**Comparing income and gender of the 2019 CES survey participants**
+
+```{r, include=FALSE}
+
+survey_data
+
+CES_grouped <- survey_data %>%
+  select(gender, pretax_income) %>%
+  group_by(gender)%>%
+  summarize(
+  Count = n(),
+  Min = min(pretax_income),
+  Q1 = quantile(pretax_income, c(.25)),
+  Median = median(pretax_income),
+  Q3 = quantile(pretax_income, c(.75)),
+  Max = max(pretax_income), 
+  Mean = round(mean(pretax_income), 2),
+  "Trimmed mean" = round(mean(pretax_income, trim = 0.1),2), 
+  Var = round(var(pretax_income)),
+  SD = round(sd(pretax_income),2))
+
+knitr::kable(CES_grouped, caption = "The trimmed mean is trimmed by 10 percent")
+
+
+```
+
+```{r,  echo=FALSE}
+
+
+knitr::kable(CES_grouped, caption = "The trimmed mean is trimmed by 10 percent") %>%
+  kable_styling(latex_options = "hold_position")
+
+
+```
+
+When analyzing survey participants and their leanings towards a political party, it is important to consider the survey participant income levels as income often plays a heavy factor in an individuals political beliefs. In the above table (see Table 1), we see the numerical summaries of the 2019 CES survey participants income levels for each gender. It is evident that the 2019 CES survey contains more males than females with the data containing responses from 1748 males and 1266 females. In addition, pertaining to their income (pre-tax), we see that from the median, mean, and trimmed mean values that males in the survey have a higher income, on average, compared to females. In addition, the average income for participants of both genders is higher than national average income of $52,600 as of Jan 2019 [3]. Moreover, we see that on the low end, the survey contained individuals, both male and female, who self reported no income. On the high end, the data contains individuals, both male and female, who earn an annual income of about 2 million CAD. This causes a high level of variance and standard deviation in the data.      
+
+**Comparing gender and age of the 2019 CES survey participants**
+
+```{r, include=FALSE}
+
+survey_data
+
+CES_grouped_2 <- survey_data %>%
+  select(gender, age) %>%
+  group_by(gender)%>%
+  summarize(
+  Count = n(),
+  Min = min(age),
+  Q1 = quantile(age, c(.25)),
+  Median = median(age),
+  Q3 = quantile(age, c(.75)),
+  Max = max(age), 
+  IQR = quantile(age, c(.75))- quantile(age, c(.25)), 
+  Mean = round(mean(age), 2),
+  "Trimmed mean" = round(mean(age, trim = 0.1),2), 
+  Var = round(var(age)),
+  SD = round(sd(age),2), 
+  Range = max(age)-min(age))
+  
+
+
+knitr::kable(CES_grouped_2, caption = "The trimmed mean is trimmed by 10 percent")
+  
+
+
+```
+
+```{r,  echo=FALSE}
+
+
+knitr::kable(CES_grouped_2, caption = "The trimmed mean is trimmed by 10 percent") %>%
+  kable_styling(latex_options = "hold_position")
+
+
+```
+
+From the above table (see Table 2), we are able to see the numerical summaries of the 2019 CES survey participants age for each gender. From the table, we see that for both male and female survey participants, age ranges from 18 to 95. In addition, we see that both genders have nearly identical values. Notably, the mean and trimmed mean ages for males is slightly lower compared to the females, causing the males to have a slightly higher variance and standard deviation. Despite this, it seems that males and females have a nearly identical distribution of ages in the survey. 
+
+
+## Graphical Summaries
+
+In addition to numerical summaries, it is helpful to visualize the distribution of the variables in the data set. 
+
+**Comparing the different parties that the 2019 CES survey participants reported to vote for in the next election**
+
+
+
+```{r, include=FALSE}
+check <-ces2019_phone %>% 
+  filter(q11 > 0)
+
+sum(survey_data$vote_conservative)
+votes <-ces2019_phone %>% 
+  select(q11)
+
+votes <-votes %>% 
+  filter(q11 > 0)
+
+votes <-votes %>% 
+  filter(q11 < 8)
+
+votes3 <-votes %>% 
+  mutate(party = ifelse(q11 == 1, "LIB", 
+                        ifelse(q11 == 2, "CON",
+                               ifelse(q11 == 3, "NDP",
+                                      ifelse(q11 == 4, "BQU",
+                                             ifelse(q11 == 5, "GPC",
+                                                    ifelse(q11 == 6, "PCP",
+                                                           "other")))))))
+votes3<-votes3%>%
+  select(party)
+
+votes2 <- votes3 %>%
+  group_by(party) %>%
+  summarize(count = n())
+
+
+Final_grapgh <-ggplot(data=votes2, aes(x=party, y=count)) +
+  geom_bar(stat="identity")+
+  ggtitle("2019 CES survey reported voting for next election") +
+  xlab("Canadian political parties") +
+  ylab("Total number of survey participants who report will vote")
+  
+
+
+
+
+```
+```{r,echo=FALSE,message = FALSE,fig.align='center'}
+Final_grapgh
+
+
+```
+
+_**Figure 1**: Total number of 2019 CES survey participants who plan to vote for each political party in the next Canadian federal election. _
+
+In the above barplot (see Figure 1), we see the total number of 2019 CES survey participants and which party they intend to vote for in the next Canadian election. From the graph, we are able to see that most people in the survey reported that in the next election they would vote for the Conservative Party, followed by the Liberal Party and the New Democratic Party. The number of people who state they would vote for the other parties is noticeably lower. It is for this reason that in this study we will be focusing on the Liberal Party, Conservative Party and the New Democratic Party and the predicted voting turnout. 
+
+\newpage
+
+**Comparing residing province and highest achieved education level of GSS survey participants (separated by gender)**
+
+
+```{r, include=FALSE}
+graph_2 <- census %>%
+  select(gender, province, education) %>%
+  group_by(gender, province, education) %>%
+  summarize(count = n())
+
+graph_2
+Final_grapgh2 <-graph_2 %>%
+ggplot(aes(x= province, y=count, fill=education)) + geom_bar(stat="identity")+
+ggtitle("Comparing province residence and education of GSS study participants") +
+xlab("Provinces") +
+ylab("Total number of participants from each province")+
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+facet_grid(~gender)
+
+
+
+```
+```{r,echo=FALSE,message = FALSE,fig.align='center'}
+Final_grapgh2
+
+
+```
+
+_**Figure 2**: Breakdown of gender and education level of survey participants in each province._
+
+From the plot above (see Figure 2), we see the total number of participants in the GSS study from each province and their highest level of completed education for each gender. From the graph we can see that for both males and females, most people in the GSS study are from Ontario and Quebec, followed by British Columbia and Alberta. This makes reasonable sense as these four are the highest populated provinces in Canada. In contrast, for both males and females, we see that Newfoundland and Labrador has the lowest population. In terms of the highest level of education achieved, we see that both males and females seem to have a roughly even distribution across all levels of education represented in each province. Some notable exceptions are that it appears that Nova Scotia and Prince Edward Island have a low amount of individuals with a university certificate below bachelor's (particularly for men). Lastly, we can see that Ontario and Quebec have a relatively higher amount of people with a University certificate higher than a bachelor's in comparison to the other provinces.    
+
+\newpage
+
+**Comparing income and age of GSS survey participants (separated by gender)**
+
+
+```{r, include=FALSE}
+graph_3 <- census %>%
+  select(gender, age_group, income_family) %>%
+  group_by(gender, age_group, income_family) %>%
+  summarize(count = n())
+
+graph_3
+Final_grapgh3 <-graph_3 %>%
+ggplot(aes(x= age_group, y=count, fill=income_family)) + geom_bar(stat="identity")+
+ggtitle("Comparing age and income of GSS study participants") +
+xlab("Age groups") +
+ylab("Total number of particpants in each age group")+
+theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+facet_grid(~gender)
+
+
+
+```
+```{r,echo=FALSE,message = FALSE,fig.align='center'}
+Final_grapgh3
+
+
+```
+
+_**Figure 3**: Breakdown of survey age and family income for male and female survey participants._
+
+From the plot above (see Figure 3), we see the total number of participants in the GSS study in each age group compared to their pre-tax income levels separated by gender. From the graph, we are able to see a pattern where for both male and female individuals, there are more GSS survey participants as the age interval increases. As a result, those between 18-29 have the lowest level of representation in the GSS survey and those above the age of 60 have the highest representation. In terms of income, we see that both males and females have a similar distribution of income level. As for the distribution itself, there seems to be a pattern where as the income level increases, the disparity between the younger and older age groups becomes more pronounced. As such, we see that there seems to be an equal amount of people making less than 25 thousand across all age groups, but there are a noticeably larger amount of people above the age of 60 making above 100 thousand CAD compared to individuals between ages 18 and 29. 
+
+## Methods
+
+In this analysis, we aim to predict the overall popular vote for the next Canadian Election. In order to predict the outcome, we decided to create a model which estimates the probability of voting for different parties in each Province of Canada. Our response variable is voting for a selected party, which is a binary variable. In order to estimate a binary variable, we utilize a multi-variable logistic regression model. There are 20,602 observations in our data, but it is not a good representation of the national population. Therefore, we will partition data into demographic cells (in our case by province) and estimate the response variable for each province. Then, we will apply a post-stratification model and aggregate the cell-level estimates up to a population-level estimate, and predict the selected party's votes in the next federal elections. Finally, we will compare the percentage of the total votes for each party in order to predict which party will win the election.  
+
+
+### Model Specifics
+
+We will be using a multi-variable logistic regression model to estimate the proportion of voters who will vote for the selected party. A logistic regression model is used for binary classification models, where the response is either 1 or 0. In the case of our model, the dummy variable is set to 1 if an individual plans to vote for the seleceted party, and set to 0 otherwise. The logistic regression model used in the study is:  
+
+$$ log(\dfrac {p} {1-p}) = \beta_0+\beta_1  x_{age} + \beta_2  x_{education} + \beta_3  x_{family \ income} + \beta_4  x_{gender} $$
+Where: 
+
+* $\beta_0$ = y-intercept (The value of dependent variable when independent variables are 0)
+
+* $\beta_1$ = For every increase in age group we expect the log odds to increase by $\beta_1$ 
+
+* $\beta_2$ =  For every increase in education level we expect the log odds to increase by $\beta_2$
+
+* $\beta_3$ = For every increase in family income category we expect the log odds to increase by $\beta_3$
+
+* $\beta_4$ =  Differential intercept coefficient for gender (measures the effect of the gender on logit of voting to selected party)
+
+
+
+**Assumptions for Logistic Regression**
+
+* We assume that our explanatory variables are independent of each other
+* There are no extreme outliers 
+* There is a linear relationship between our explanatory variables and the logit of the response variable
+
+**Issue**: One problem with standard logistic regression is that we assume that our observations about different variables are independent, but we know it is not the case in reality. Some group behaviors have an effect on each other. We will use multi-level regression and a post-stratification model.
+
+### Multi-Level Modelling
+The multi-level regression model specifies a logit transformation of the mean for a binary response variable, voting for a selected party. In the model, there are two different levels of independent variables. Level 1 is for individual characteristics, which may vary between all the individuals. We will use these characteristics for predicting our result with the logistic function, as mentioned above. Level 2 is group characteristics, which also have an effect on the individual characteristics. In our case, we believe that people living in the same province have a similar perspective in life and tend to vote for a specific party according to their individual characteristics.
+
+In the multi-level regression we model our data in two different levels:
+
+* Level 1 (individual level):
+
+    * Age group, education, family income, gender
+    
+* Level 2 (group level):
+
+    * Province 
+
+**Assumptions for Multi-Level Modelling**
+
+* Level 1 variables are independent
+* The random effects are normally distributed
+
+### Post-Stratification 
+
+We constructed a hierarchical logistic regression model in order to calculate the mean of a binary response variable conditioned on post-stratification cells, which are age group, education, family income, and gender as the first layer and province for layer two.  The hierarchical model allows us to fit more cells than it is possible to fit using classical methods, thus allowing us to include more population-level information while also allowing us to include all the information used in standard survey sampling inferences [4]. We are combining the small-area estimations with the population information. The post-stratification model to find this collective proportion is:
+
+
+$$ \hat{y}^{PS} = \dfrac {{{\sum}} N_j \hat{y}_i}{N_j}$$
+Where:
+$\hat{y}^{PS}$ = estimated proportion of voters for the population
+${N_j}$ = sample size in each province
+$\hat{y}_i$ = estimated proportion of voters in each province 
+
+In simple terms, in order to estimate the proportion of voters we use the cells obtained from the multi-level regression model. In the previous section, we decided to divide the population per age group, education level, family income, gender. With the post-stratification model we are aiming to find an aggregate result which will give us a more reliable proportion about the population's votes for the selected party.
+
+We will implement the same methodology and model construction for the three largest parties, the Liberal Party, the Conservative Party, and the New Democratic Party (NDP). Comparing the results for each model will enable us to make a prediction of the outcome of the next Canadian federal election
+ 
+
+
+All analysis for this report was programmed using `R version 4.0.2`. 
+
+
+## Results 
+
+```{r, include=FALSE}
+
+# Creating the Model
+
+m_liberal <- glm(vote_liberal ~ age_group+education+income_family+gender, family="binomial", data = survey_data)
+
+m_conservative <- glm(vote_conservative ~ age_group+education+income_family+gender, family="binomial", data = survey_data)
+
+m_NDP <- glm(vote_NDP ~ age_group+education+income_family+gender, family="binomial", data = survey_data)
+
+# Model Results (to Report in Results section)
+# summary(model)
+# OR
+# broom::tidy(model)
+broom::tidy(m_liberal) %>% 
+  kbl() %>% 
+  kable_styling()
+```
+
+```{r, include=FALSE}
+
+# Here I will perform the post-stratification calculation
+#census_data_counts <- census %>% 
+#  group_by(age_group) %>% 
+#  summarise(n=n())
+
+
+census$estimate_liberal <- m_liberal %>% 
+  predict.glm(newdata = census, type="response")
+
+census$estimate_conservative <- m_conservative %>% 
+  predict.glm(newdata = census, type="response")
+
+census$estimate_NDP <- m_NDP %>% 
+  predict.glm(newdata = census, type="response")
+
+
+census<-census %>% 
+  mutate(liberal_predict_prop = estimate_liberal*cell_division, conservative_predict_prop = estimate_conservative*cell_division, NDP_predict_prop = estimate_NDP*cell_division) %>%
+  group_by(Province = province) %>% 
+  summarise(liberal_prediction = sum(liberal_predict_prop), conservative_prediction = sum(conservative_predict_prop), NDP_prediction = sum(NDP_predict_prop))
+
+```
+
+The post stratification computations on the logistic regression model provide predictions for the next federal election in Canada. For each Canadian province, the predicted percentages of the total vote for the Liberal Party, Conservative Party, and New Democratic Party (NDP) are highlighted below (see Table 3).
+
+```{r, echo=FALSE}
+census %>% 
+  summarise(Province, "Liberal Vote"= percent(liberal_prediction,accuracy = 0.01), "Conservative Vote" = percent(conservative_prediction, accuracy= 0.01),"NDP Vote" = percent(NDP_prediction,accuracy = 0.01)) %>% 
+  kbl() %>% 
+  kable_styling(latex_options = "hold_position", position = "center") %>% 
+   column_spec(1, bold = T, border_right = T, border_left = T) %>% 
+  column_spec(4, border_right = T) %>% 
+  row_spec(0,color = "white",background = "#D7261E")
+  
+```
+_**Table 3**: **Predicted Votes** for the Liberal, Conservative and New Democratic parties for each province (listed in alphabetical order). According to the model used in this study, the Conservative party is projected to obtain the highest percentage (approximately 25-27%) of the total vote in each Canadian province. Meanwhile, the Liberal party (approximately 21-24%) and New Democratic Party (approximately 10-11%) are projected to obtain a smaller portion of the total votes in each Canadian province. _
+
+
+
+As a better visualization of the results, the barplot below (Figure 4) illustrates the projected votes for the Liberal, Conservative, and NDP parties respectively. The results are shown as a percentage of the total vote in each Canadian province.
+
+
+```{r, include= FALSE}
+
+# Here you can include some relevant visualizations.
+
+pred <- rbind(census$liberal_prediction, census$conservative_prediction, census$NDP_prediction)
+par(mar=c(6,12,0,0.75))
+barplot(pred, beside = TRUE, col= c("red", "blue", "orange"), names.arg = census$Province, las = 2, xlab="Percentage of total votes",xlim = c(0,0.3),horiz=TRUE)
+
+
+opar = par(oma = c(0,0,0,0),mar = c(0,0,0,0), new=TRUE)
+legend(x ="bottom", legend=c("Liberal", "Conservative", "NDP"),fill= c("red", "blue", "orange"), cex=0.8,  ncol = 3, inset=-0.333, box.lty = 0)
+par(opar)
+
+
+
+```
+
+
+```{r, echo=FALSE}
+
+liberal <- census %>% 
+  group_by(Province) %>% 
+  summarise(Party= "Liberal",Prediction = as.numeric(liberal_prediction))
+
+conservative <- census %>% 
+  group_by(Province) %>% 
+  summarise(Party= "Conservative", Prediction = as.numeric(conservative_prediction))
+
+NDP <- census %>% 
+  group_by(Province) %>% 
+  summarise(Party= "NDP",Prediction = as.numeric(NDP_prediction))
+
+
+
+pred <- mapply(c, liberal, conservative, NDP)
+pred <- data.frame(pred)
+pred$Prediction <- as.numeric(pred$Prediction)
+
+
+pred %>% 
+ggplot(aes(x= Province, y=Prediction, fill=Party)) + 
+    geom_bar(position="dodge", stat="identity", col="black")+
+    xlab("Provinces") +
+    ylab("Percentage of Total Votes")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+    scale_y_continuous(labels = scales::percent, limits=c(0,0.3))+
+    scale_fill_manual(values = c("blue", "red", "orange"))
+
+
+```
+
+_**Figure 4**: The barplot illustrates that the Conservative Party is projected to win the popular vote in each Canadian province. Meanwhile, the Liberal Party is projected to obtain a slightly lower percentage of the popular vote and the New Democratic Party is projected to obtain the lowest percentage of the votes between the three parties._
+
+The results appear to indicate that the Conservative Party is projected to obtain the highest percentage of the total vote in each province, suggesting that the Conservative Party is predicted to win the next Canadian federal election. These results seem to be consistent with recent federal elections where the Conservative and Liberal parties have received the largest portion of the popular vote.
+
+
+## Conclusions
+
+To test our hypothesis of the Conservative Party winning the popular vote in the next federal election, we utilized a multi-level poststratification model to predict the odds for voting for the top three parties, namely the Liberal, Conservative, and NDP parties. 
+
+With Canadian federal elections following the parliamentary system, the results of our data analysis provide us with projections on how each of the provinces will vote in the next election. From the results of the post-stratification model, we can infer that the Conservative Party will win the popular vote, but since the Canadian federal election is not determined by the popular vote, we would also need to take into account the way each regional area votes with respect to the Members of Parliament. The data and model implemented in this study is limited to a provincial breakdown of votes and therefore, we are not able to determine which region the survey participants belong to. The results of this study provide us with insight into making a prediction for the result of the popular vote, which largely but not always coincides with the election results. 
+
+While this poststratification model was constructed using a multi-level logistic regression model, the available variables which were accessible to both the census data and the CES 2019 survey were quite limited. As such, the model implemented in this study was not able to evaluate the prediction using other information that may have been useful, such as views on certain politicians and policies. By integrating more independent variables into the model, we would be able to increase the cell number and ultimately reach a more accurate prediction.
+
+To be able to further strengthen the model implemented in the study, it would be beneficial to obtain data in the CES survey that had more of an overlap with the census data. Additionally, having information on the regional breakdown of survey participants and the corresponding Members of Parliament would enable us to make an accurate prediction on the overall outcome of the federal election.
+
+
+
+## Bibliography
+
+1. Canadian Election Study [https://ces-eec.arts.ubc.ca/english-section/home/](https://ces-eec.arts.ubc.ca/english-section/home/). (Last Accessed: Nov 4th, 2021) 
+
+2. (2017, Feb 27). *The General Social Survey: An Overview*. Statistics Canada. [https://www150.statcan.gc.ca/n1/pub/89f0115x/89f0115x2013001-eng.htm](https://www150.statcan.gc.ca/n1/pub/89f0115x/89f0115x2013001-eng.htm). (Last Accessed: Nov 4th, 2021)   
+
+3. Dodge M. (2020). *The Average Canadian Salary in 2019*. Jobillico. [https://www.jobillico.com/blog/en/average-canadian-salary/](https://www.jobillico.com/blog/en/average-canadian-salary/). (Last Accessed: Nov 4th, 2021)  
+
+4. Buttice, MK, and B Highton. “How Does Multilevel Regression and Poststratification Perform with Conventional National Surveys?” Political Analysis, 6 July 2017, [https://escholarship.org/uc/item/5wc2g12h](https://escholarship.org/uc/item/5wc2g12h). (Last Accessed: Nov 4th, 2021)
+
+
+5. Zhu, Hao. Create Awesome HTML Table with Knitr::Kable and Kableextra. 19 Feb. 2021, [https://haozhu233.github.io/kableExtra/awesome_table_in_html.html#Table_Footnote](https://haozhu233.github.io/kableExtra/awesome_table_in_html.html#Table_Footnote). (Last Accessed: Nov 4th, 2021)
+
+6. “Legends in Graphs and Charts. Statistics for Ecologists Exercises.” Data Analytics, 13 Nov. 2019, [https://www.dataanalytics.org.uk/legends-on-graphs-and-charts/](https://www.dataanalytics.org.uk/legends-on-graphs-and-charts/). (Last Accessed: Nov 4th, 2021)
